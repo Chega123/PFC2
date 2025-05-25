@@ -39,7 +39,7 @@ def load_valid_emotions(session_num):
             valid[utt] = (float(st), float(en), label)
     return valid
 
-def convert_audio_to_mono_16kHz(audio_segment):
+def convert_audio_to_mono_16kHz(audio_segment):  #formato de wav2vec
     return audio_segment.set_channels(1).set_frame_rate(16000)
 
 def split_and_save(wav_file, video_file, trans_file, session_num, valid_utterances):
