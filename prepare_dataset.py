@@ -53,7 +53,7 @@ def split_and_save(wav_file, video_file, trans_file, session_num, valid_utteranc
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     if fps == 0 or width == 0 or height == 0:
-        print(f"⚠️ Propiedades de video no válidas: {video_file}")
+        print(f"Propiedades de video no válidas: {video_file}")
         cap.release()
         return
 
@@ -110,7 +110,7 @@ def split_and_save(wav_file, video_file, trans_file, session_num, valid_utteranc
         while current_frame < end_frame:
             ret, frame = cap.read()
             if not ret:
-                print(f"⚠️ Error leyendo frame {current_frame} en {video_file}")
+                print(f"Error leyendo frame {current_frame} en {video_file}")
                 break
             # Crop frame
             cropped_frame = frame[y1:y2, x1:x2]
