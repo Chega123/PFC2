@@ -87,7 +87,7 @@ def split_and_save(wav_file, video_file, trans_file, session_num, valid_utteranc
             csv.writer(f).writerow([f"[{st} - {en}]", utt, emo])
 
         # VIDEO 
-        # Calculate frame range
+        # calcular rango frame
         start_frame = int(st * fps)
         end_frame = int(en * fps)
         cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
