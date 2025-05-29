@@ -24,16 +24,13 @@ def train(model, train_dataloader, test_dataloader, device, epochs=10, lr=1e-5, 
 
     # scheduler
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=2, min_lr=1e-7)
-
     criterion = CrossEntropyLoss()
-    
     for epoch in range(start_epoch, epochs):
         model.train()
         total_loss = 0
         for batch in tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{epochs}"):
             x, y = batch
             x, y = x.to(device), y.to(device)
-
             optimizer.zero_grad()
             logits = model(x)
             loss = criterion(logits, y)
@@ -66,7 +63,6 @@ def train(model, train_dataloader, test_dataloader, device, epochs=10, lr=1e-5, 
         print("Classification Report:")
         print(classification_report(all_labels, all_preds, target_names=["neutral", "happy/excited", "sad", "angry"]))
 
-        # Actualizar scheduler
         current_lr = optimizer.param_groups[0]['lr']
         scheduler.step(avg_val_loss)  # Actualizar scheduler
         new_lr = optimizer.param_groups[0]['lr']
@@ -74,7 +70,6 @@ def train(model, train_dataloader, test_dataloader, device, epochs=10, lr=1e-5, 
             print(f"Lr reducido de {current_lr:.2e} a {new_lr:.2e}")
 
 
-        # Salvar checkpoint si es mejor
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             torch.save({

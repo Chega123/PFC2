@@ -15,7 +15,7 @@ class Wav2VecEmotion(nn.Module):
         )
 
     def extract_features(self, x):
-        x = x.squeeze(1)  # batch, time)
+        x = x.squeeze(1)  # (batch, time)
         out = self.wav2vec(x)
         hidden_states = out.last_hidden_state  #(batch, seq_len, 768)
         attention_out, _ = self.attention(hidden_states, hidden_states, hidden_states)
