@@ -1,0 +1,9 @@
+batch_size = 6
+num_epochs = 4
+lr = 2.05133826308745e-06
+weight_decay = 0.002051110418843397
+dropout = 0.20580836121681995
+num_frozen_layers = 11
+hidden_size = 768
+num_layers_gru = 2
+f1 = 0.3123
