@@ -1,0 +1,7 @@
+lr = 1.733026547075e-05
+weight_decay = 0.005932780282744932
+dropout = 0.21472613596667964
+num_frozen_layers = 2
+batch_size = 16
+num_epochs = 5
+f1 = -0.5463
