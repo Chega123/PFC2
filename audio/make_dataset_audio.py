@@ -26,8 +26,3 @@ def collect_dataset_info():
                                     "name": name
                                 })
     return data
-"""
-if __name__ == "__main__":
-    dataset = collect_dataset_info()
-    print(f"Total segmentos encontrados: {len(dataset)}")"""
-
