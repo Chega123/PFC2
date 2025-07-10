@@ -1,13 +1,19 @@
 # main.py
-
 import torch
+import numpy as np
+import random
+torch.manual_seed(42)
+np.random.seed(42)
+torch.cuda.manual_seed(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+random.seed(42)
 import os
 from audio_model import Wav2VecEmotionClassifier
 from train import train
 from collate import collate_fn
 
 def load_best_params(filepath):
-    """Load the best hyperparameters from the Optuna results file."""
     params = {}
     with open(filepath, 'r') as f:
         for line in f:
@@ -28,10 +34,10 @@ def main():
     # Load best parameters from Optuna results
     best_params_file = "audio/optuna_results/best_params_audio.txt"
     if not os.path.exists(best_params_file):
-        raise FileNotFoundError(f"Best parameters file not found at {best_params_file}")
+        raise FileNotFoundError(f"Mejores hiperparametros encontrados:  {best_params_file}")
 
     params = load_best_params(best_params_file)
-    print("Loaded best parameters:")
+    print("Mejores hiperparametros cargados :")
     for key, value in params.items():
         print(f"  {key}: {value}")
 
@@ -54,7 +60,7 @@ def main():
     # Set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-    print(f"Using device: {device}")
+    print(f"Dispositivo usado: {device}")
 
     # Dataset configuration
     train_sessions = ["Session1", "Session2", "Session3"]
@@ -80,7 +86,7 @@ def main():
         collate_fn=collate_fn
     )
 
-    print(f"Training completed. Final metrics:")
+    print(f"Entrenamiento completo, metricas finales:")
     print(f"  Validation Loss: {val_loss:.4f}")
     print(f"  Validation Accuracy: {val_acc:.4f}")
     print(f"  Validation F1 Score: {val_f1:.4f}")

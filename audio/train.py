@@ -1,4 +1,10 @@
 import torch
+import numpy as np
+torch.manual_seed(42)
+np.random.seed(42)
+torch.cuda.manual_seed(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 import os
 from tqdm import tqdm
 from torch.nn import CrossEntropyLoss
@@ -8,7 +14,6 @@ from sklearn.metrics import classification_report
 from torch.utils.data import DataLoader, WeightedRandomSampler
 from load_dataset import AudioDataset
 from collate import collate_fn
-import numpy as np
 
 def train(
     model,
@@ -69,7 +74,7 @@ def train(
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         start_epoch = checkpoint['epoch'] + 1
         best_val_f1 = checkpoint.get('best_val_f1', 0.0)  # Changed to track F1
-        print(f"Modelo cargado desde epoch {start_epoch}")
+        print(f"Modelo cargado desde epoca {start_epoch}")
     else:
         optimizer = AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
         start_epoch = 0
@@ -102,7 +107,7 @@ def train(
         scheduler.step()
 
         avg_loss = total_loss / len(train_dataloader)
-        print(f"Epoch {epoch+1} - Loss: {avg_loss:.4f}")
+        print(f"Epoca {epoch+1} - Loss: {avg_loss:.4f}")
 
         # Validation
         model.eval()
@@ -121,7 +126,7 @@ def train(
                 all_labels.extend(y.cpu().numpy())
 
         avg_val_loss = total_val_loss / len(test_dataloader)
-        print(f"Epoch {epoch+1} - Validation Loss: {avg_val_loss:.4f}, LR: {scheduler.get_last_lr()[0]:.6f}")
+        print(f"Epoca {epoch+1} - Validation Loss: {avg_val_loss:.4f}, LR: {scheduler.get_last_lr()[0]:.6f}")
 
         report = classification_report(
             all_labels,
@@ -129,7 +134,7 @@ def train(
             target_names=["neutral", "happy/excited", "sad", "angry"],
             output_dict=True
         )
-        print("Classification Report:")
+        print("Reporte de clasificación:")
         print(classification_report(
             all_labels,
             all_preds,

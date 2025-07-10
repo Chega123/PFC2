@@ -1,5 +1,4 @@
 # optuna_audio.py
-
 import torch
 from audio_model import Wav2VecEmotionClassifier
 import optuna
@@ -12,7 +11,15 @@ from collate import collate_fn
 metric_to_optimize = "f1"  # Opciones: "val_loss", "accuracy", "f1"
 
 def objective(trial):
-    # Hiperparámetros sugeridos por Optuna
+    import torch
+    import numpy as np
+    import random
+    torch.manual_seed(42)
+    np.random.seed(42)
+    torch.cuda.manual_seed(42)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    random.seed(42)
     lr = trial.suggest_loguniform("lr", 1e-6, 5e-5)
     weight_decay = trial.suggest_loguniform("weight_decay", 1e-3, 1e-1)
     dropout = trial.suggest_float("dropout", 0.2, 0.3)
