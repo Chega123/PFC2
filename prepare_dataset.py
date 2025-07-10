@@ -153,7 +153,7 @@ def split_and_save(wav_path, avi_path, trans_path, session_num, valid_utts):
             crop_video_cv2(avi_path, out_video, start, end, x1, 0, x2, h)
 
 # Ejecutar para sesiones 1–3
-for session_num in range(4, 6):
+for session_num in range(5, 6):
     valid = load_valid_emotions(session_num)
     session_path = os.path.join(base_dir, f"Session{session_num}", "dialog")
     wav_dir  = os.path.join(session_path, 'wav')
