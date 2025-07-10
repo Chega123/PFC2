@@ -1,10 +1,16 @@
 import os
 import torch
+import numpy as np
+torch.manual_seed(42)
+np.random.seed(42)
+torch.cuda.manual_seed(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
 import torch.nn as nn
 from torch.utils.data import DataLoader, WeightedRandomSampler
 from sklearn.metrics import f1_score, accuracy_score
 from tqdm import tqdm
-import numpy as np
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from video_model import VideoEmotionClassifier
 from dataset import VideoDataset
@@ -63,8 +69,8 @@ def train(
     sample_weights = compute_class_weights(train_dataset)
     sampler = WeightedRandomSampler(sample_weights, len(sample_weights), replacement=True)
     print("entre")
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=sampler, num_workers=4)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=sampler, num_workers=0)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
     print("termine los dataloader")
 
     model = VideoEmotionClassifier(
@@ -75,7 +81,7 @@ def train(
         num_frozen_layers=num_frozen_layers
     ).to(device)
 
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)  # Add label smoothing
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     
     scheduler = CosineAnnealingWarmRestarts(
@@ -88,7 +94,9 @@ def train(
     os.makedirs(checkpoint_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 
+    last_f1 = 0.0
     best_f1 = 0.0
+    model_path = os.path.join(checkpoint_dir, "last_model.pth")
     best_model_path = os.path.join(checkpoint_dir, "best_model.pth")
     print("pase scheduler")
 
@@ -104,9 +112,8 @@ def train(
             optimizer.zero_grad()
             outputs = model(x)
             
-            # Add mixup with 50% probability
             if torch.rand(1).item() < 0.5:
-                lam = np.random.beta(0.2, 0.2)  # Mixup parameter
+                lam = np.random.beta(0.2, 0.2)
                 batch_size = x.size(0)
                 index = torch.randperm(batch_size).to(device)
                 mixed_x = lam * x + (1 - lam) * x[index]
@@ -117,7 +124,6 @@ def train(
                 outputs = model(x)
                 loss = criterion(outputs, y)
 
-            # Gradient clipping
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
             loss.backward()
@@ -136,15 +142,18 @@ def train(
         val_f1, val_acc, val_loss = evaluate(model, val_loader, criterion, device)
 
         current_lr = scheduler.get_last_lr()[0]
-        print(f"Epoch {epoch+1} | Train Loss: {train_loss:.4f}, F1: {train_f1:.4f}, Acc: {train_acc:.4f}")
+        print(f"Epoca {epoch+1} | Train Loss: {train_loss:.4f}, F1: {train_f1:.4f}, Acc: {train_acc:.4f}")
         print(f"Val Loss: {val_loss:.4f}, F1: {val_f1:.4f}, Acc: {val_acc:.4f}, LR: {current_lr:.6f}")
 
-        # Early stopping based on validation F1
+        last_f1 = val_f1
+        torch.save(model.state_dict(), model_path)
+        print(f"Model guardado en: {model_path}")
+
         if val_f1 > best_f1:
             best_f1 = val_f1
             torch.save(model.state_dict(), best_model_path)
-            print(f"New best model saved at: {best_model_path}")
-    model.load_state_dict(torch.load(best_model_path))
-    torch.save(model.state_dict(), os.path.join(output_dir, "best_model_final.pth"))
+        print(f"Nuevo mejor model guardado en: {best_model_path}")
+
+    torch.save(model.state_dict(), os.path.join(output_dir, "last_model_final.pth"))
 
     return best_f1, val_acc, val_loss

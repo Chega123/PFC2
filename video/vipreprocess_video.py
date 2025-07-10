@@ -5,6 +5,7 @@ import cv2
 from PIL import Image
 import numpy as np
 from torchvision import transforms
+import gc
 
 IMG_SIZE = 224
 FRAME_RATE = 2
@@ -16,8 +17,6 @@ preprocess = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)
 ])
-
-import gc  # Add at top of process_videos_like_audio.py
 
 def extract_and_save_npy(video_path: Path, save_path: Path, emotion: str):
     cap = cv2.VideoCapture(str(video_path))
@@ -71,14 +70,13 @@ def process_videos(video_root, output_root, labels_dir):
             continue
         label_session_path = labels_dir / session
         if not label_session_path.is_dir():
-            print(f"[Warning] No label directory for {session}")
+            print(f"[Warning] Directorio de label no encontrado {session}")
             continue
         for gender in os.listdir(session_path):
             gender_path = session_path / gender
             label_gender_path = label_session_path / gender
             if not gender_path.is_dir() or not label_gender_path.is_dir():
                 continue
-            # Load labels for this session and gender
             video_to_emotion = {}
             for label_file in label_gender_path.glob("*.csv"):
                 with open(label_file, "r") as f:
@@ -96,13 +94,12 @@ def process_videos(video_root, output_root, labels_dir):
                     save_path = output_root / session / gender / f"{name}.npy"
                     emotion = video_to_emotion.get(name)
                     if emotion is None:
-                        print(f"[Warning] No emotion found for {name} in {session}/{gender}")
+                        print(f"[Warning] No se encontro emocion {name} en {session}/{gender}")
                         continue
                     extract_and_save_npy(video_path, save_path, emotion)
 
 if __name__ == "__main__":
-    video_root = "data/video"              # Estructura: /SesXX/gender/*.mp4
-    output_root = "data/video_preprocessed" # Salida .npy por video
-    labels_dir = "data/labels"             # Estructura: /SesXX/gender/*.csv
-
+    video_root = "D:/tesis/data/video"
+    output_root = "D:/tesis/data/video_preprocessed"
+    labels_dir = "D:/tesis/data/labels"
     process_videos(video_root, output_root, labels_dir)

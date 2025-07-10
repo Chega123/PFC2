@@ -1,10 +1,17 @@
 import torch
+import numpy as np
+import random
+torch.manual_seed(42)
+np.random.seed(42)
+torch.cuda.manual_seed(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+random.seed(42)
 import time
 from train import train
 import os
 
 def read_best_params(file_path):
-    """Lee los mejores hiperparámetros desde un archivo de texto."""
     params = {}
     try:
         with open(file_path, "r") as f:
@@ -29,17 +36,17 @@ def read_best_params(file_path):
 def main():
     # Configuración inicial
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"🖥️ Dispositivo disponible: {device}")
+    print(f"Dispositivo disponible: {device}")
 
     # Leer los mejores hiperparámetros
     params_file = "best_params_optuna_vit.txt"
-    print(f"📖 Leyendo mejores hiperparámetros desde {params_file}...")
-    params = read_best_params(params_file)
+    '''print(f"Leyendo mejores hiperparámetros desde {params_file}...")
+    params = read_best_params(params_file)'''
     
     # Mostrar parámetros leídos
-    print("✅ Hiperparámetros cargados:")
+    '''print("Hiperparámetros cargados:")
     for key, value in params.items():
-        print(f"  • {key}: {value}")
+        print(f"  • {key}: {value}")'''
 
     # Configuración de directorios y sesiones
     data_root = "data/video_preprocessed"
@@ -51,23 +58,23 @@ def main():
 
     # Verificar que los directorios de datos existen
     if not os.path.exists(data_root):
-        raise FileNotFoundError(f"El directorio de datos {data_root} no existe. Asegúrese de haber preprocesado los videos.")
+        raise FileNotFoundError(f"El directorio de datos {data_root} no existe. Asegurese de haber preprocesado los videos.")
 
     # Iniciar fine-tuning
-    print(f"🚀 Iniciando fine-tuning con ViT en {device}...")
+    print(f"Iniciando fine-tuning con ViT en {device}...")
     start_time = time.time()
     
     try:
         best_val_f1, val_acc, val_loss = train(
             data_root=data_root,
-            batch_size=params["batch_size"],
-            num_epochs=80,
-            lr=params["lr"],
-            weight_decay=params["weight_decay"],
-            dropout=params["dropout"],
-            num_frozen_layers=params["num_frozen_layers"],
-            hidden_size=params["hidden_size"],
-            num_layers_gru=params["num_layers_gru"],
+            batch_size=5,
+            num_epochs=40,
+            lr=0.00010677482709481354,
+            weight_decay=0.029341527565000736,
+            dropout=0.20929008254399956,
+            num_frozen_layers=6,
+            hidden_size=768,
+            num_layers_gru=1,
             sessions=sessions,
             validation_session=validation_session,
             genders=genders,

@@ -14,17 +14,17 @@ class VideoEmbeddingExtractor(nn.Module):
     ):
         super(VideoEmbeddingExtractor, self).__init__()
         self.vit = ViTModel.from_pretrained(pretrained_vit)
-        vit_hidden_size = self.vit.config.hidden_size  # Typically 768
+        vit_hidden_size = self.vit.config.hidden_size  
         self.gru = nn.GRU(
             input_size=vit_hidden_size,
             hidden_size=hidden_size,
             num_layers=num_layers,
             batch_first=True,
             bidirectional=False,
-            dropout=0.0 if num_layers == 1 else dropout  # Dropout if num_layers > 1
+            dropout=0.0 if num_layers == 1 else dropout 
         )
         self.dropout = nn.Dropout(dropout)
-        self.embedding_projection = nn.Linear(hidden_size, 768)  # Projection to 768 dimensions
+        self.embedding_projection = nn.Linear(hidden_size, 768)  # 768 dimensiones
         self.hidden_size = hidden_size
         self.num_frozen_layers = num_frozen_layers
         self.freeze_layers(num_frozen_layers)

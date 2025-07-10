@@ -41,11 +41,11 @@ class VideoDataset(Dataset):
                         if label is None:
                             print(f"Skipping {fp}: unknown emotion {emotion}")
                             continue
-                        self.data.append((video_frames, label, sess))  # Store frames directly
+                        self.data.append((video_frames, label, sess)) 
                     except Exception as e:
                         print(f"Error loading {fp}: {e}")
                         continue
-        print(f"Total video samples loaded: {len(self.data)}")
+        print(f"Total de muestras de video cargadas: {len(self.data)}")
 
     def __len__(self):
         return len(self.data)
@@ -53,7 +53,7 @@ class VideoDataset(Dataset):
     def __getitem__(self, idx):
         video_frames, label, session = self.data[idx]
 
-        arr = np.array(video_frames)  # Ensure it's a NumPy array
+        arr = np.array(video_frames) 
         num_frames = arr.shape[0]
 
         if num_frames >= self.max_frames:
