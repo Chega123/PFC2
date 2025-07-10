@@ -7,38 +7,44 @@ class AutoAttentionFusionModule(nn.Module):
         self.embed_dim = embed_dim
         self.num_heads = num_heads
 
-        # Self-attention layer
         self.self_attention = nn.MultiheadAttention(embed_dim, num_heads, batch_first=True)
         self.norm1 = nn.LayerNorm(embed_dim)
         self.dropout = nn.Dropout(dropout)
 
         # Final multimodal pooling layer
-        self.pooling = nn.Linear(embed_dim * 3, embed_dim)  # Combines all three modalities
+        self.pooling = nn.Sequential(
+            nn.Linear(embed_dim * 3, embed_dim * 2),  # 2304 -> 1536
+            nn.ReLU(),
+            nn.Linear(embed_dim * 2, embed_dim)  # 1536 -> 768
+        )
         self.norm2 = nn.LayerNorm(embed_dim)
 
     def forward(self, text_vector, audio_vector, video_vector):
-        # Ensure inputs are of shape (batch_size, 1, embed_dim)
         batch_size = text_vector.size(0)
+        assert text_vector.dim() == 2 and text_vector.size(1) == self.embed_dim, \
+            f"Text vector shape: {text_vector.shape}"
+        assert audio_vector.dim() == 2 and audio_vector.size(1) == self.embed_dim, \
+            f"Audio vector shape: {audio_vector.shape}"
+        assert video_vector.dim() == 2 and video_vector.size(1) == self.embed_dim, \
+            f"Video vector shape: {video_vector.shape}"
+
         text_vector = text_vector.unsqueeze(1)  # (batch_size, 1, embed_dim)
-        audio_vector = audio_vector.unsqueeze(1)  # (batch_size, 1, embed_dim)
-        video_vector = video_vector.unsqueeze(1)  # (batch_size, 1, embed_dim)
+        audio_vector = audio_vector.unsqueeze(1) 
+        video_vector = video_vector.unsqueeze(1)  
 
-        # Concatenate the vectors
-        combined = torch.cat((text_vector, audio_vector, video_vector), dim=1)  # (batch_size, 3, embed_dim)
+        combined = torch.cat((text_vector, audio_vector, video_vector), dim=1)
 
-        # Apply self-attention
-        attn_output, _ = self.self_attention(combined, combined, combined)
-        attn_output = self.norm1(combined + self.dropout(attn_output))  # Residual connection
+        # auto-atencion
+        attn_output, _ = self.self_attention(combined, combined, combined)  # (batch_size, 3, embed_dim)
+        if self.training: 
+            attn_output = self.dropout(attn_output)
+        attn_output = self.norm1(combined + attn_output)  # Residual connection
 
-        # Pool the attended vectors into a single 768-dimensional vector
-        pooled = attn_output.mean(dim=1)  # (batch_size, embed_dim)
+        # Concatenar
+        pooled = attn_output.view(batch_size, -1)  
+
+        #pooling
         output = self.pooling(pooled)
         output = self.norm2(output)
 
-        return output  # (batch_size, embed_dim) i.e., 768-dimensional vector
-
-# Example usage (can be adjusted based on your input pipeline)
-def fuse_with_auto_attention(text_emb, audio_emb, video_emb):
-    fusion_module = AutoAttentionFusionModule(embed_dim=768)
-    fused_vector = fusion_module(text_emb, audio_emb, video_emb)
-    return fused_vector
+        return output  
