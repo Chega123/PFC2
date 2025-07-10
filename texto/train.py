@@ -1,5 +1,12 @@
 import os
 import torch
+import numpy as np
+torch.manual_seed(42)
+np.random.seed(42)
+torch.cuda.manual_seed(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
 from torch.utils.data import DataLoader, WeightedRandomSampler
 from sklearn.metrics import accuracy_score, f1_score, classification_report
 from dataset import EmotionDataset
@@ -10,6 +17,9 @@ import torch.nn as nn
 from tqdm import tqdm
 from collections import Counter
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
+from transformers import get_linear_schedule_with_warmup
+import warnings
+warnings.filterwarnings("ignore")
 
 def print_trainable_parameters(model):
     total = sum(p.numel() for p in model.parameters())
@@ -17,6 +27,7 @@ def print_trainable_parameters(model):
     print(f"Parámetros totales: {total}")
     print(f"Parámetros entrenables: {trainable}")
     print(f"Porcentaje entrenable: {100 * trainable / total:.2f}%")
+
 
 def train(
     data_dir: str,
@@ -28,11 +39,16 @@ def train(
     dropout: float = 0.1,
     num_frozen_layers: int = 0,
     checkpoint_dir: str = "texto/checkpoints",
-    output_dir: str = "texto/fine_tuned_model"
+    output_dir: str = "texto/fine_tuned_model",
+    warmup_ratio: float = 0.1,  
+    grad_clip: float = 1.0,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Dispositivo: {device}")
-
+    torch.backends.cudnn.benchmark = True  
+    torch.backends.cuda.matmul.allow_tf32 = True  #usar tensor cores
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     tokenizer, model = get_tokenizer_and_model(device=device, dropout=dropout, num_frozen_layers=num_frozen_layers)
     print_trainable_parameters(model)
 
@@ -41,20 +57,30 @@ def train(
     group2 = encoder_layers[4:8]  # Capas intermedias
     group3 = encoder_layers[8:]   # Capas más cercanas a la salida
 
-    optimizer = AdamW([
-        {'params': [p for l in group1 for p in l.parameters() if p.requires_grad], 'lr': lr * 0.25},
-        {'params': [p for l in group2 for p in l.parameters() if p.requires_grad], 'lr': lr * 0.5},
-        {'params': [p for l in group3 for p in l.parameters() if p.requires_grad], 'lr': lr},
-        {'params': model.classifier.parameters(), 'lr': lr}
-    ], weight_decay=weight_decay)
 
-    # Nuevo scheduler: CosineAnnealingWarmRestarts
-    scheduler = CosineAnnealingWarmRestarts(
-        optimizer,
-        T_0=2,  # Período inicial (número de épocas antes del primer reinicio)
-        T_mult=2,  # Factor para aumentar el período tras cada reinicio
-        eta_min=1e-6  # Tasa de aprendizaje mínima
-    )
+    optimizer = AdamW([
+        {
+            'params': [p for l in group1 for p in l.parameters()], 
+            'lr': lr * 0.1,
+            'weight_decay': weight_decay * 0.1  # Menos regularización para capas bajas
+        },
+        {
+            'params': [p for l in group2 for p in l.parameters()], 
+            'lr': lr * 0.5,
+            'weight_decay': weight_decay * 0.5  # Regularización media
+        },
+        {
+            'params': [p for l in group3 for p in l.parameters()], 
+            'lr': lr,
+            'weight_decay': weight_decay  # Regularización completa
+        },
+        {
+            'params': model.classifier.parameters(), 
+            'lr': lr * 2,
+            'weight_decay': weight_decay * 2  # Más regularización para el clasificador
+        }
+    ], betas=(0.9, 0.999))  # Betas por defecto de AdamW
+
 
     # Datasets
     sessions = [f"Session{i}" for i in range(1, 4)]
@@ -74,7 +100,7 @@ def train(
     print("Distribución de etiquetas en entrenamiento:", label_counts)
 
     # Calcular pesos inversos para cada muestra
-    num_classes = 4  # neutral, happy, sad, angry
+    num_classes = 4 
     class_weights = {label: 1.0 / count for label, count in label_counts.items()}
     sample_weights = [class_weights[label] for label in train_labels]
     sampler = WeightedRandomSampler(weights=sample_weights, num_samples=len(sample_weights), replacement=True)
@@ -82,14 +108,20 @@ def train(
     # DataLoaders con WeightedRandomSampler para entrenamiento
     train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=sampler, num_workers=4, pin_memory=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
+    total_steps = len(train_loader) * num_epochs
 
+    scheduler = get_linear_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=int(warmup_ratio * total_steps),  # Usa el parámetro warmup_ratio
+        num_training_steps=total_steps
+    )
     # Crear directorio para checkpoints
     os.makedirs(checkpoint_dir, exist_ok=True)
     best_ckpt = os.path.join(checkpoint_dir, "roberta_best_f1_checkpoint.pth")
     
     best_val_f1_macro = 0.0  # Cambiado a F1 macro para guardar el mejor modelo
     start_epoch = 0
-    
+    '''
     # Cargar checkpoint si existe
     if os.path.exists(best_ckpt):
         ckpt = torch.load(best_ckpt, map_location=device)
@@ -98,49 +130,58 @@ def train(
         start_epoch = ckpt["epoch"] + 1
         best_val_f1_macro = ckpt.get("best_val_f1_macro", 0.0)
         print(f"Reanudando desde época {start_epoch}, mejor F1 macro: {best_val_f1_macro:.4f}")
-    
+    '''
     # Entrenamiento
     for epoch in range(start_epoch, num_epochs):
         model.train()
         total_loss = 0.0
+        all_train_labels = []
+        all_train_preds = []
         all_train_losses = []
-        for batch in tqdm(train_loader, desc=f"Época {epoch+1}/{num_epochs} [Entrenamiento]"):
+        scaler = torch.cuda.amp.GradScaler(enabled=torch.cuda.is_available())
+        
+        for batch_idx, batch in enumerate(tqdm(train_loader, desc=f"Época {epoch+1}/{num_epochs} [Entrenamiento]")):
             input_ids = batch["input_ids"].to(device)
             attention_mask = batch["attention_mask"].to(device)
             labels = batch["labels"].to(device)
 
-            outputs = model(input_ids, attention_mask=attention_mask)
-
-            logits = outputs.logits
-            loss_fn = nn.CrossEntropyLoss(reduction='none')
-            per_sample_loss = loss_fn(logits, labels)
-            loss = per_sample_loss.mean()
+            with torch.cuda.amp.autocast(enabled=torch.cuda.is_available()):
+                outputs = model(input_ids, attention_mask=attention_mask)
+                logits = outputs.logits
+                loss_fn = nn.CrossEntropyLoss(reduction='none')
+                per_sample_loss = loss_fn(logits, labels)
+                loss = per_sample_loss.mean()
 
             all_train_losses.extend(per_sample_loss.detach().cpu().numpy())
-
+            preds = torch.argmax(logits, dim=1)
+            all_train_preds.extend(preds.detach().cpu().numpy())
+            all_train_labels.extend(labels.detach().cpu().numpy())
             if not torch.isfinite(loss):
                 print(f"Advertencia: Pérdida no finita (loss={loss.item()})")
                 continue
 
             total_loss += loss.item()
 
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip) 
+            scaler.step(optimizer)
+            scaler.update()
             optimizer.zero_grad()
+            scheduler.step()
 
-        # Actualizar el scheduler después de cada época
-        scheduler.step()
-
+        train_accuracy = accuracy_score(all_train_labels, all_train_preds)
         avg_train = total_loss / len(train_loader)
-        print(f"Pérdida promedio de entrenamiento: {avg_train:.4f}")
+        print(f"Época {epoch+1}:")
+        print(f"  Pérdida entrenamiento: {avg_train:.4f}")
+        print(f"  Accuracy entrenamiento: {train_accuracy:.4f}")
 
         # Validación
         model.eval()
         val_loss = 0.0
         all_preds = []
         all_labels = []
-        all_probs = []  # Lista para almacenar las probabilidades
+        all_probs = []  
 
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(val_loader, desc=f"Época {epoch+1}/{num_epochs} [Validación]")):
