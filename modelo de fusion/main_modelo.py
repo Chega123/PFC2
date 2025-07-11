@@ -77,7 +77,6 @@ def load_models():
 
 
 def predict(dataloader, models, device):
-    """Realizar la prediccion en los datasets y extraer resultados."""
     text_model, audio_model, video_model, hierarchical_fusion, auto_attention_fusion, final_mlp = models
     all_preds = []
     all_labels = []
