@@ -12,7 +12,7 @@ output_video_dir = "data/video"
 for d in (output_speech_dir, output_text_dir, output_labels_dir, output_video_dir):
     os.makedirs(d, exist_ok=True)
 
-# Emociones de interés con etiquetas
+# etiquetas
 target_emotions = {"ang": "Angry", "hap": "Happy", "exc": "Happy", "neu": "Neutral", "sad": "Sad"}
 
 def load_valid_emotions(session_num):
@@ -85,7 +85,7 @@ def split_and_save(wav_path, avi_path, trans_path, session_num, valid_utts):
     # --- Audio ---
     audio = AudioSegment.from_wav(wav_path)
 
-    # --- Vídeo: sólo para obtener w,h ---
+    # --- Vídeo ---
     cap = cv2.VideoCapture(avi_path)
     if not cap.isOpened():
         print(f"Error abriendo {avi_path}")
@@ -109,25 +109,25 @@ def split_and_save(wav_path, avi_path, trans_path, session_num, valid_utts):
             is_female_turn = (speaker_suffix[0] == 'F')
 
             if is_female_turn:
-                # Queremos la MITAD donde está la mujer:
+                # Queremos la mitad
                 if session_letter == 'F':
-                    # mujer a la IZQUIERDA (corregido)
+                    # mujer a la IZQ
                     x1, x2 = 0, half_w
                 else:
-                    # sesión con 'M' → mujer a la DERECHA (corregido)
+                    # sesión con 'M' → mujer a la DER
                     x1, x2 = half_w, w
                 gender = 'Female'
             else:
                 # es turno del hombre → recortamos la MITAD donde está el hombre:
                 if session_letter == 'F':
-                    # sesión F → hombre a la DERECHA (corregido)
+                    # sesión F → hombre a la DER
                     x1, x2 = half_w, w
                 else:
-                    # sesión M → hombre a la IZQUIERDA (corregido)
+                    # sesión M → hombre a la IZQ
                     x1, x2 = 0, half_w
                 gender = 'Male'
 
-            # Crear directorios por modalidad y género
+            # Crear directorios
             dir_speech = os.path.join(output_speech_dir, f"Session{session_num}", gender)
             dir_text   = os.path.join(output_text_dir,   f"Session{session_num}", gender)
             dir_labels = os.path.join(output_labels_dir, f"Session{session_num}", gender)
@@ -139,20 +139,20 @@ def split_and_save(wav_path, avi_path, trans_path, session_num, valid_utts):
             seg = convert_audio(audio[start_ms:end_ms])
             seg.export(os.path.join(dir_speech, f"{utt_id}.wav"), format='wav')
 
-            # Guardar texto limpio
+            # Guardar texto
             txt = text.replace("[LAUGHTER]", "").replace("[BREATHING]", "").upper().strip()
             with open(os.path.join(dir_text, f"{utt_id}.txt"), 'w') as out:
                 out.write(txt)
 
-            # Guardar etiqueta CSV
+            # Guardar label CSV
             with open(os.path.join(dir_labels, f"{utt_id}.csv"), 'w', newline='') as out:
                 csv.writer(out).writerow([f"[{start} - {end}]", utt_id, emo])
 
-            # Recortar y exportar vídeo
+            # Recortar 
             out_video = os.path.join(dir_video, f"{utt_id}.mp4")
             crop_video_cv2(avi_path, out_video, start, end, x1, 0, x2, h)
 
-# Ejecutar para sesiones 1–3
+
 for session_num in range(5, 6):
     valid = load_valid_emotions(session_num)
     session_path = os.path.join(base_dir, f"Session{session_num}", "dialog")
