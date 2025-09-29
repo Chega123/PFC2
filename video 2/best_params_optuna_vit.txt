@@ -1,0 +1,7 @@
+batch_size=2
+num_epochs=15
+lr=3e-5
+weight_decay=0.01
+accumulation_steps=8
+init_prompt= This image represents the emotion of (happy, sad, angry or neutral):
+f1=0.5000
