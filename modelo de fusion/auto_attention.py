@@ -48,3 +48,4 @@ class AutoAttentionFusionModule(nn.Module):
         output = self.norm2(output)
 
         return output  
+
