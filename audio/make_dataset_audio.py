@@ -15,7 +15,7 @@ def collect_dataset_info():
                         reader=csv.reader(f)
                         for row in reader:
                             if not row: continue
-                            start_end,name,emotion=row;
+                            start_end,name,emotion=row
                             audio_file = os.path.join(audio, session, gender, name + ".wav")
                             if os.path.exists(audio_file):
                                 data.append({

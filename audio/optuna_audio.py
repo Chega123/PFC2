@@ -1,4 +1,4 @@
-# optuna_audio.py
+# Para eliminar
 import torch
 from audio_model import Wav2VecEmotionClassifier
 import optuna
@@ -76,7 +76,7 @@ if __name__ == "__main__":
 
     print(f"Optimizando métrica: {metric_to_optimize}")
     study = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=42))
-    study.optimize(objective, n_trials=15)  # Puedes cambiar n_trials
+    study.optimize(objective, n_trials=15)  
 
     best_trial = study.best_trial
     print("Mejor combinación encontrada:")

@@ -1,4 +1,3 @@
-# main.py
 import torch
 import numpy as np
 import random
@@ -19,19 +18,17 @@ def load_best_params(filepath):
         for line in f:
             key, value = line.strip().split(' = ')
             try:
-                # Convert string values to appropriate types
                 if key in ['lr', 'weight_decay', 'dropout']:
                     params[key] = float(value)
                 elif key in ['num_frozen_layers', 'num_epochs', 'batch_size']:
                     params[key] = int(value)
-                elif key == 'f1':  # Metric stored in file
+                elif key == 'f1':  
                     params[key] = float(value)
             except ValueError:
                 continue
     return params
 
 def main():
-    # Load best parameters from Optuna results
     best_params_file = "audio/optuna_results/best_params_audio.txt"
     if not os.path.exists(best_params_file):
         raise FileNotFoundError(f"Mejores hiperparametros encontrados:  {best_params_file}")
@@ -41,15 +38,13 @@ def main():
     for key, value in params.items():
         print(f"  {key}: {value}")
 
-    # Extract hyperparameters
-    lr = params.get('lr', 1e-5)  # Default if not found
+    lr = params.get('lr', 1e-5) 
     weight_decay = params.get('weight_decay', 1e-2)
     dropout = params.get('dropout', 0.2)
     num_frozen_layers = params.get('num_frozen_layers', 0)
     batch_size = params.get('batch_size', 4)
-    num_epochs = 100
+    num_epochs = params.get('num_epochs', 15)
 
-    # Create the model
     model = Wav2VecEmotionClassifier(
         pretrained_model="facebook/wav2vec2-base",
         num_classes=4,
@@ -57,20 +52,16 @@ def main():
         num_frozen_layers=num_frozen_layers
     )
 
-    # Set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     print(f"Dispositivo usado: {device}")
 
-    # Dataset configuration
-    train_sessions = ["Session1", "Session2", "Session3"]
-    test_sessions = ["Session4"]
+    train_sessions = ["Session2", "Session3", "Session4", "Session5"]
+    test_sessions = ["Session1"]
     root_dir = "data/audio_preprocessed"
 
-    # Checkpoint path for saving the best model
     checkpoint_path = "audio/checkpoint_audio/best_model.pth"
 
-    # Train the model with the best parameters
     val_loss, val_acc, val_f1 = train(
         model=model,
         root_dir=root_dir,
