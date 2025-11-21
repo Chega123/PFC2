@@ -31,12 +31,12 @@ def print_trainable_parameters(model):
 
 def train(
     data_dir: str,
-    validation_session: str = "Session4",
-    batch_size: int = 4,
-    num_epochs: int = 2,
-    lr: float = 2e-5,
-    weight_decay: float = 1e-2,
-    dropout: float = 0.1,
+    validation_session: str = "Session5",
+    batch_size: int =  64,
+    num_epochs: int = 15,
+    lr: float = 2.7676263131199924e-05,
+    weight_decay: float = 0.01,
+    dropout: float = 0.15,
     num_frozen_layers: int = 0,
     checkpoint_dir: str = "texto/checkpoints",
     output_dir: str = "texto/fine_tuned_model",
@@ -52,62 +52,69 @@ def train(
     tokenizer, model = get_tokenizer_and_model(device=device, dropout=dropout, num_frozen_layers=num_frozen_layers)
     print_trainable_parameters(model)
 
-    encoder_layers = list(model.roberta.encoder.layer)
-    group1 = encoder_layers[:4]   # Capas más profundas
-    group2 = encoder_layers[4:8]  # Capas intermedias
-    group3 = encoder_layers[8:]   # Capas más cercanas a la salida
-
-
-    optimizer = AdamW([
-        {
-            'params': [p for l in group1 for p in l.parameters()], 
-            'lr': lr * 0.1,
-            'weight_decay': weight_decay * 0.1  # Menos regularización para capas bajas
-        },
-        {
-            'params': [p for l in group2 for p in l.parameters()], 
-            'lr': lr * 0.5,
-            'weight_decay': weight_decay * 0.5  # Regularización media
-        },
-        {
-            'params': [p for l in group3 for p in l.parameters()], 
-            'lr': lr,
-            'weight_decay': weight_decay  # Regularización completa
-        },
-        {
-            'params': model.classifier.parameters(), 
-            'lr': lr * 2,
-            'weight_decay': weight_decay * 2  # Más regularización para el clasificador
-        }
-    ], betas=(0.9, 0.999))  # Betas por defecto de AdamW
-
+    optimizer = AdamW(
+        model.parameters(),
+        lr=lr,
+        weight_decay=weight_decay,
+        betas=(0.9, 0.999),
+        eps=1e-8
+    )
 
     # Datasets
-    sessions = [f"Session{i}" for i in range(1, 4)]
+    sessions = [f"Session{i}" for i in range(1, 6)]
     train_sessions = [s for s in sessions if s != validation_session]
     print(f"Sesiones de entrenamiento: {train_sessions}")
     print(f"Sesión de validación: {validation_session}")
-    
+
     train_dataset = EmotionDataset(data_dir, session_filter=train_sessions)
     val_dataset = EmotionDataset(data_dir, session_filter=[validation_session])
 
     print(f"Tamaño del dataset de entrenamiento: {len(train_dataset)}")
     print(f"Tamaño del dataset de validación: {len(val_dataset)}")
 
-    # Calcular distribución de etiquetas para WeightedRandomSampler
-    train_labels = [train_dataset[i]["labels"].item() for i in range(len(train_dataset))]
-    label_counts = Counter(train_labels)
-    print("Distribución de etiquetas en entrenamiento:", label_counts)
+    sample = train_dataset[0]
+    print("Ejemplo de train_dataset[0]:", sample)
+    print("Tipo de dato devuelto:", type(sample))
 
-    # Calcular pesos inversos para cada muestra
-    num_classes = 4 
-    class_weights = {label: 1.0 / count for label, count in label_counts.items()}
-    sample_weights = [class_weights[label] for label in train_labels]
-    sampler = WeightedRandomSampler(weights=sample_weights, num_samples=len(sample_weights), replacement=True)
-    
-    # DataLoaders con WeightedRandomSampler para entrenamiento
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=sampler, num_workers=4, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
+
+    # Obtener solo las etiquetas de entrenamiento
+    train_labels = [sample["labels"].item() for sample in train_dataset]
+
+    # Y lo mismo para validación
+    val_labels = [sample["labels"].item() for sample in val_dataset]
+    print("Primeros labels del train_dataset:", train_labels[:10])
+    num_classes = len(set(train_labels))
+    print(f"Número de clases detectadas: {num_classes}")
+
+    # Calcular pesos para CrossEntropyLoss
+    label_counts = Counter(train_labels)
+    total_count = sum(label_counts.values())
+
+    class_weights = torch.tensor(
+        [total_count / label_counts.get(i, 1) for i in range(num_classes)], 
+        dtype=torch.float,
+        device=device
+    )
+    class_weights = class_weights / class_weights.sum()
+
+    print("Pesos para CrossEntropyLoss:", class_weights)
+
+    # DataLoader normal, sin sampler
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=4,
+        pin_memory=True
+    )
+
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=4,
+        pin_memory=True
+    )
     total_steps = len(train_loader) * num_epochs
 
     scheduler = get_linear_schedule_with_warmup(
@@ -121,16 +128,7 @@ def train(
     
     best_val_f1_macro = 0.0  # Cambiado a F1 macro para guardar el mejor modelo
     start_epoch = 0
-    '''
-    # Cargar checkpoint si existe
-    if os.path.exists(best_ckpt):
-        ckpt = torch.load(best_ckpt, map_location=device)
-        model.load_state_dict(ckpt["model_state_dict"])
-        optimizer.load_state_dict(ckpt["optimizer_state_dict"])
-        start_epoch = ckpt["epoch"] + 1
-        best_val_f1_macro = ckpt.get("best_val_f1_macro", 0.0)
-        print(f"Reanudando desde época {start_epoch}, mejor F1 macro: {best_val_f1_macro:.4f}")
-    '''
+
     # Entrenamiento
     for epoch in range(start_epoch, num_epochs):
         model.train()

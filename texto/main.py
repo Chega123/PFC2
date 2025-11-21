@@ -38,9 +38,9 @@ if __name__ == "__main__":
 
     best_val_loss, val_accuracy, val_f1_macro = train(
         data_dir="data/text_tokenized",
-        validation_session="Session4",
+        validation_session="Session1",
         batch_size=best_params["batch_size"],
-        num_epochs=200,
+        num_epochs=25,
         lr=best_params["lr"],
         weight_decay=best_params["weight_decay"],
         dropout=best_params["dropout"],
