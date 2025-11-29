@@ -220,7 +220,7 @@ class IEMOCAPDataset(Dataset):
                     padding=True,
                     return_tensors="pt",
 														max_pixels=1280*28*28,
-														min_pixels=256*28*28
+														min_pixels=256*28*28,
                 )
                 
                 user_length = user_inputs['input_ids'].shape[1]
