@@ -100,7 +100,8 @@ def main():
         model_name,
         quantization_config=bnb_config,
         device_map="auto",
-        trust_remote_code=True
+        trust_remote_code=True,
+						attn_implementation="flash_attention_2"
     )
     print("✓ Modelo base cargado en 4-bit\n")
 
@@ -118,7 +119,10 @@ def main():
     # CONFIGURAR PEFT (LoRA)
     # ============================================================
     print("[3/4] Configurando PEFT...")
-    
+	   if hasattr(model, "visual"):  
+					for param in model.visual.parameters():
+							param.requires_grad=False
+
     if resume_checkpoint:
         # Cargar modelo LoRA existente
         model = prepare_model_for_kbit_training(model) 
